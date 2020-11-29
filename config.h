@@ -8,7 +8,13 @@
 #define SEND_THREAD_CNT 1 
 #define CORE_CNT 8 
 #define PART_CNT 1 
-// Specify the number of clients. 
+// Specify the number of clients.
+
+#define PCERB true
+#define SHARD_SIZE 4
+#define SHARD 2
+#define CROSS_SHARD_PERCENTAGE 100
+
 #define CLIENT_NODE_CNT 1
 #define CLIENT_THREAD_CNT 2 
 #define CLIENT_REM_THREAD_CNT 1 

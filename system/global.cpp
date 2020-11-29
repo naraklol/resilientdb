@@ -149,8 +149,13 @@ bool keyAvail = false;
 uint64_t totKey = 0;
 
 uint64_t indexSize = 2 * g_client_node_cnt * g_inflight_max;
-uint64_t g_min_invalid_nodes = (g_node_cnt - 1) / 3; //min number of valid nodes
+#if PCERB
+    uint64_t g_min_invalid_nodes = (g_shard_size-1)/3; //min num valid nodes defined by shard_size
+#else
+    uint64_t g_min_invalid_nodes = (g_node_cnt - 1) / 3; //min number of valid nodes
 
+#if PCERB
+    bool g_involved_shard ={true, true};
 // Funtion to calculate hash of a string.
 string calculateHash(string str)
 {
@@ -313,6 +318,11 @@ uint64_t get_batch_size()
 {
 	return g_batch_size;
 }
+#if PCERB
+    uint32_t last_commited_txn = 0;
+    uint32_t g_shard_size = SHARD_SIZE;
+    uint32_t g_shard_cnt = NODE_CNT/SHARD_SIZE;
+    SpinLockMap<String, int> digest_dir;
 
 // This variable is mainly used by the client to know its current primary.
 uint32_t g_view = 0;
@@ -369,5 +379,6 @@ uint64_t payload_size = 51200;
 #elif EXT_DB == MEMORY
 	DataBase* db = new InMemoryDB();
 #endif
+
 
 

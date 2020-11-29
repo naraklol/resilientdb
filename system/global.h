@@ -202,6 +202,19 @@ enum RemReqType
     BSC_MSG,
 #endif
 
+#if PCERB
+    LOCAL_INPUTS_MSG,
+    //LI_PBFT_PREP_MSG,
+    //LI_PBFT_COMMIT_MSG,
+    //Destruct msg and crossshard msg might be the same msg
+    //do we need PBFT_CHKPT_MSGs?
+    DESTRUCT_MSG,
+    CROSS_SHARD_X_MSG,
+    DECIDE_OUTCOME_MSG
+    //DO_PBFT_PREP2_MSG,
+    //DO_PBFT_COMMIT2_MSG
+#endif
+
     PBFT_PREP_MSG,   // Prepare
     PBFT_COMMIT_MSG, // Commit
     PBFT_CHKPT_MSG   // Checkpoint and Garbage Collection
@@ -411,4 +424,22 @@ enum BSCType
 };
 #endif
 
+#endif
+
+#if PCERB
+    extern bool g_involved_shard[];
+    extern uint32_t g_view[];
+    extern std::mutex viewMTX[];
+    uint64_t get_shard_number(uint64_t = i = g_node_id);
+    uint64_t view_to_primary(uint64_t view,uint64_t node = g_node_id);
+    void set_view(uint64_t nview, uint64_t node =g_node_id);
+    uint64_t get_view(int shard = 0);
+    uint64_t next_set_id(uint64_t prev);
+    int is_in_same_shard(uint64_t first_id, uint64_t second_id);
+    bool is_local_request(uint64_t txn_id);
+    bool is_primary_node(uint64_t thd_id, uint64_t node = g_node_id);
+    extern UInt32 g_shard_size;
+    extern UInt32 g_shard_cnt;
+    extern UInt32 g_involved_shard_cnt;
+    extern SpinLockMap<string, int> digest_directory;
 #endif
