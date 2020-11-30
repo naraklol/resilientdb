@@ -119,8 +119,11 @@ RC ClientThread::run()
 		progress_stats();
 		int32_t inf_cnt;
 		uint32_t next_node = get_view();
-		next_node_id = get_view();
 
+#if PCERB
+        next_node_id = view_to_primary(get_view(get_shard_number()));
+#else
+        next_node_id = get_view();
 #if VIEW_CHANGES
 		//if a request by this client hasnt been completed in time
 		ClientQueryBatch *cbatch = NULL;

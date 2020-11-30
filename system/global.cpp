@@ -11,6 +11,7 @@
 #include "pool.h"
 #include "txn_table.h"
 #include "client_txn.h"
+#include "txn.h"
 #include "../config.h"
 
 mem_alloc mem_allocator;
@@ -324,24 +325,74 @@ uint64_t get_batch_size()
     uint32_t g_shard_cnt = NODE_CNT/SHARD_SIZE;
     SpinLockMap<String, int> digest_dir;
 
-// This variable is mainly used by the client to know its current primary.
-uint32_t g_view = 0;
-std::mutex viewMTX;
-void set_view(uint64_t nview)
-{
-	viewMTX.lock();
-	g_view = nview;
-	viewMTX.unlock();
-}
+    // This variable is mainly used by the client to know its current primary.
+    uint32_t g_view[NODE_CNT/SHARD_SIZE] = {0};
+    std::mutex viewMTX[NODE_CNT/SHARD_SIZE];
+    void set_view(uint64_t nview, int shard)
+    {
+        viewMTX[shard].lock();
+        g_view[shard] = nview;
+        viewMTX[shard].unlock();
+    }
+    bool is_primary_node(uint64_t thd_id, uint64_t node)
+    {
+        return view_to_primary(get_current_view(thd_id), node) == node;
+    }
+    uint64_t get_shard_number(uint64_t i)
+    {
+        if (i >= g_node_cnt && i < g_node_cnt + g_client_node_cnt)
+        {
+            int client_number = i - g_node_cnt;
+            return (client_number / (g_client_node_cnt / g_shard_cnt));
+        }
+        else
+            return (i / g_shard_size);
+    }
+    uint64_t get_view(int shard)
+    {
+        uint64_t val;
+        viewMTX[shard].lock();
+        val = g_view[shard];
+        viewMTX[shard].unlock();
+        return val;
+    }
+    uint64_t view_to_primary(uint64_t view, uint64_t node)
+    {
+        return get_shard_number(node) * g_shard_size + view;
+    }
+    uint64_t next_set_id(uint64_t prev)
+    {
+        return prev + g_shard_cnt;
+    }
 
-uint64_t get_view()
-{
-	uint64_t val;
-	viewMTX.lock();
-	val = g_view;
-	viewMTX.unlock();
-	return val;
-}
+    int is_in_same_shard(uint64_t first_id, uint64_t second_id)
+    {
+        return (int)(first_id / g_shard_size) == (int)(second_id / g_shard_size);
+    }
+    bool is_local_request(uint64_t txn_id)
+    {
+        if ((txn_id / g_batch_size) % (g_shard_size) == g_node_id / g_shard_size)
+            return true;
+        else
+            return false;
+    }
+
+#else
+    void set_view(uint64_t nview)
+    {
+        viewMTX.lock();
+        g_view = nview;
+        viewMTX.unlock();
+    }
+    uint64_t get_view()
+    {
+        uint64_t val;
+        viewMTX.lock();
+        val = g_view;
+        viewMTX.unlock();
+        return val;
+    }
+#endif
 
 #if LOCAL_FAULT || VIEW_CHANGES
 // Server parameters for tracking failed replicas
