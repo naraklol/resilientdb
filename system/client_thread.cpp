@@ -81,8 +81,19 @@ RC ClientThread::run()
 {
 
 	tsetup();
-	printf("Running ClientThread %ld\n", _thd_id);
-
+	//printf("Why is this not running");
+	//printf("Running ClientThread %ld\n", _thd_id);
+	//printf("why is this not running2");
+	/*
+    #if PCERB
+        printf("PCERB reached 1");
+            cout << "PCERB reached 1";
+            fflush(stdout);
+    #else
+        //cout << "PCERB not REACHED1";
+        //fflush(stdout);
+    #endif
+    */
 	while (true)
 	{
 		keyMTX.lock();
@@ -93,6 +104,18 @@ RC ClientThread::run()
 		}
 		keyMTX.unlock();
 	}
+	/*
+    #if PCERB
+        printf("PCERB reached 2");
+        cout << "PCERB reached 2";
+        fflush(stdout);
+        //assert(0);
+    #else
+        //cout << "PCERB not REACHED2";
+        //fflush(stdout);
+        //assert(0);
+    #endif
+    */
 #if !BANKING_SMART_CONTRACT
 	BaseQuery *m_query;
 #endif
@@ -112,6 +135,18 @@ RC ClientThread::run()
 	ClientQueryBatch *bmsg = (ClientQueryBatch *)mssg;
 	bmsg->init();
 #endif
+	/*
+#if PCERB
+    printf("PCERB reached");
+    cout << "PCERB reached";
+    fflush(stdout);
+    assert(0);
+#else
+
+    cout << "PCERB not REACHED";
+    fflush(stdout);
+    assert(0);
+#endif*/
 	uint32_t next_node_id = get_view();
 	while (!simulation->is_done())
 	{
@@ -121,9 +156,17 @@ RC ClientThread::run()
 		uint32_t next_node = get_view();
 
 #if PCERB
-        next_node_id = view_to_primary(get_view(get_shard_number()));
+        cout << "PCERB REACHED";
+        fflush(stdout);
+		//assert(0);
+		printf("WHAT THIS DOESNT SHOW UP");
+		next_node_id = view_to_primary(get_view(get_shard_number()));
 #else
-        next_node_id = get_view();
+        cout << "PCERB not REACHED";
+        fflush(stdout);
+//        assert(0);
+		next_node_id = get_view();
+#endif
 #if VIEW_CHANGES
 		//if a request by this client hasnt been completed in time
 		ClientQueryBatch *cbatch = NULL;

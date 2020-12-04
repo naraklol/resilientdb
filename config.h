@@ -1,20 +1,14 @@
 #ifndef _CONFIG_H_ 
 #define _CONFIG_H_ 
 // Specify the number of servers or replicas 
-#define NODE_CNT 4
+#define NODE_CNT 4 
 // Number of worker threads at primary. For RBFT (6) and other algorithms (5). 
 #define THREAD_CNT 5 
 #define REM_THREAD_CNT 3
 #define SEND_THREAD_CNT 1 
 #define CORE_CNT 8 
 #define PART_CNT 1 
-// Specify the number of clients.
-
-#define PCERB true
-#define SHARD_SIZE 4
-#define SHARD 2
-#define CROSS_SHARD_PERCENTAGE 100
-
+// Specify the number of clients. 
 #define CLIENT_NODE_CNT 1
 #define CLIENT_THREAD_CNT 2 
 #define CLIENT_REM_THREAD_CNT 1 
@@ -165,7 +159,7 @@
 #define RBFT_ON false 
 // Select the type of RBFT, (1) RBFT+PBFT, and  (2) RBFT+DBFT 
 #define RBFT_ALG RPBFT 
-#define RPBFT 1  
+#define RPBFT 1 
 #define RDBFT 2 
 // Enable or Disable pipeline at primary replica. 
 #define ENABLE_PIPELINE true 
@@ -218,15 +212,17 @@
 #define M200 2	// 200KB. 
 #define M400 3	// 400KB. 
 
-// To allow testing in-memory database or SQLite. 
-// Further, using SQLite a user can also choose to persist the data. 
-#define EXT_DB MEMORY
+#define EXT_DB SQL
 #define MEMORY 1
 #define SQL 2
 #define SQL_PERSISTENT 3
 
-// To allow testing of a Banking Smart Contracts. 
-#define BANKING_SMART_CONTRACT false
+// Sharding Config
+
+#define PCERB true
+#define SHARD_SIZE 4
+#define CROSS_SHARD_PRECENTAGE 30
+#define MESSAGE_PER_BUFFER 24
 
 #endif
 

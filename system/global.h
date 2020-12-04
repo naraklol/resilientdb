@@ -23,8 +23,9 @@
 #include <sys/time.h>
 #include <math.h>
 
+#include "helper.h"
 #include "pthread.h"
-#include "config.h"
+#include "../config.h"
 #include "stats.h"
 #include "pool.h"
 #include "txn_table.h"
@@ -35,6 +36,8 @@
 #include "xed25519.h"
 #include "sha.h"
 #include "database.h"
+#include "../data_structures/hash_map.h"
+#include "../data_structures/hash_set.h"
 
 using namespace std;
 
@@ -210,7 +213,7 @@ enum RemReqType
     //do we need PBFT_CHKPT_MSGs?
     DESTRUCT_MSG,
     CROSS_SHARD_X_MSG,
-    DECIDE_OUTCOME_MSG
+    DECIDE_OUTCOME_MSG,
     //DO_PBFT_PREP2_MSG,
     //DO_PBFT_COMMIT2_MSG
 #endif
@@ -383,12 +386,32 @@ void set_newView(uint64_t thd_id, bool val);
 extern uint64_t g_batch_size;
 uint64_t get_batch_size();
 extern uint64_t batchSet[2 * CLIENT_NODE_CNT * MAX_TXN_IN_FLIGHT];
+#if PCERB
+    extern bool g_involved_shard[];
+    extern uint32_t g_view[];
+    extern std::mutex viewMTX[];
+    uint64_t get_shard_number(uint64_t i = g_node_id);
+    uint64_t view_to_primary(uint64_t view,uint64_t node = g_node_id);
+    void set_view(uint64_t nview, uint64_t node =g_node_id);
+    uint64_t get_view(int shard = 0);
+    uint64_t next_set_id(uint64_t prev);
+    int is_in_same_shard(uint64_t first_id, uint64_t second_id);
+    bool is_local_request(uint64_t txn_id);
+    bool is_primary_node(uint64_t thd_id, uint64_t node = g_node_id);
+    extern UInt32 g_shard_size;
+    extern UInt32 g_shard_cnt;
+    extern UInt32 g_involved_shard_cnt;
+    extern SpinLockMap<string, int> digest_directory;
+#else
+
+
 
 // This variable is mainly used by the client to know its current primary.
 extern uint32_t g_view;
 extern std::mutex viewMTX;
 void set_view(uint64_t nview);
 uint64_t get_view();
+#endif
 
 #if LOCAL_FAULT || VIEW_CHANGES
 // Server parameters for tracking failed replicas
@@ -425,7 +448,7 @@ enum BSCType
 #endif
 
 #endif
-
+/*
 #if PCERB
     extern bool g_involved_shard[];
     extern uint32_t g_view[];
@@ -443,3 +466,4 @@ enum BSCType
     extern UInt32 g_involved_shard_cnt;
     extern SpinLockMap<string, int> digest_directory;
 #endif
+ */

@@ -154,9 +154,10 @@ uint64_t indexSize = 2 * g_client_node_cnt * g_inflight_max;
     uint64_t g_min_invalid_nodes = (g_shard_size-1)/3; //min num valid nodes defined by shard_size
 #else
     uint64_t g_min_invalid_nodes = (g_node_cnt - 1) / 3; //min number of valid nodes
-
+#endif
 #if PCERB
-    bool g_involved_shard ={true, true};
+    bool g_involved_shard[] = {true, true};
+#endif
 // Funtion to calculate hash of a string.
 string calculateHash(string str)
 {
@@ -323,7 +324,7 @@ uint64_t get_batch_size()
     uint32_t last_commited_txn = 0;
     uint32_t g_shard_size = SHARD_SIZE;
     uint32_t g_shard_cnt = NODE_CNT/SHARD_SIZE;
-    SpinLockMap<String, int> digest_dir;
+    SpinLockMap<string, int> digest_dir;
 
     // This variable is mainly used by the client to know its current primary.
     uint32_t g_view[NODE_CNT/SHARD_SIZE] = {0};
@@ -378,6 +379,8 @@ uint64_t get_batch_size()
     }
 
 #else
+uint32_t g_view = 0;
+std::mutex viewMTX;
     void set_view(uint64_t nview)
     {
         viewMTX.lock();
