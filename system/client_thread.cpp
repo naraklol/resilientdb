@@ -11,7 +11,7 @@
 #include "wl.h"
 #include "message.h"
 #include "timer.h"
-
+bool singlePrint = true;
 void ClientThread::send_key()
 {
 	// Send everyone the public key.
@@ -67,6 +67,9 @@ void ClientThread::setup()
 	commonVar++;
 	batchMTX.unlock();
 
+#if PCERB
+    txn_batch_sent_cnt = 0;
+#endif
 	if (_thd_id == 0)
 	{
 		while (commonVar < g_client_thread_cnt + g_client_rem_thread_cnt + g_client_send_thread_cnt)
@@ -79,12 +82,12 @@ void ClientThread::setup()
 
 RC ClientThread::run()
 {
-
 	tsetup();
 	//printf("Why is this not running");
-	//printf("Running ClientThread %ld\n", _thd_id);
+	printf("Running ClientThread %ld\n", _thd_id);
 	//printf("why is this not running2");
-	/*
+    //
+    /*
     #if PCERB
         printf("PCERB reached 1");
             cout << "PCERB reached 1";
@@ -148,110 +151,115 @@ RC ClientThread::run()
     assert(0);
 #endif*/
 	uint32_t next_node_id = get_view();
+    #if PCERB
+        cout << "PCERB: AT BEGINNING OF RUN";
+        fflush(stdout);
+        //assert(0);
+    #else
+        cout << "PCERB NOT REACHED OR NOT SET: AT BEGINNING OF RUN";
+        fflush(stdout);
+    #endif
+    //        assert(0);
+    next_node_id = get_view();
 	while (!simulation->is_done())
 	{
-		heartbeat();
+	    heartbeat();
 		progress_stats();
 		int32_t inf_cnt;
-		uint32_t next_node = get_view();
+        uint32_t next_node = get_view();
 
-#if PCERB
-        cout << "PCERB REACHED";
-        fflush(stdout);
-		//assert(0);
-		printf("WHAT THIS DOESNT SHOW UP");
-		next_node_id = view_to_primary(get_view(get_shard_number()));
-#else
-        cout << "PCERB not REACHED";
-        fflush(stdout);
-//        assert(0);
-		next_node_id = get_view();
-#endif
-#if VIEW_CHANGES
-		//if a request by this client hasnt been completed in time
-		ClientQueryBatch *cbatch = NULL;
-		if (client_timer->checkTimer(cbatch))
-		{
-			cout << "TIMEOUT!!!!!!\n";
-			resend_msg(cbatch);
-		}
-#endif
+        #if PCERB
+                //cout << "PCERB: AT BEGINNING OF RUN";
+                //fflush(stdout);
+                next_node_id = view_to_primary(get_view(get_shard_number()));
+                //printf( "NextNode:%d", next_node_id);
+        #else
+                next_node_id = get_view();
+        #endif
+        #if VIEW_CHANGES
+            //if a request by this client hasnt been completed in time
+            ClientQueryBatch *cbatch = NULL;
+            if (client_timer->checkTimer(cbatch))
+            {
+                cout << "TIMEOUT!!!!!!\n";
+                resend_msg(cbatch);
+            }
+        #endif
 
-#if LOCAL_FAULT
-		//if a request by this client hasnt been completed in time
-		ClientQueryBatch *cbatch = NULL;
-		if (client_timer->checkTimer(cbatch))
-		{
-			cout << "TIMEOUT!!!!!!\n";
-		}
-#endif
+        #if LOCAL_FAULT
+            //if a request by this client hasnt been completed in time
+            ClientQueryBatch *cbatch = NULL;
+            if (client_timer->checkTimer(cbatch))
+            {
+                cout << "TIMEOUT!!!!!!\n";
+            }
+        #endif
 
 		// Just in case...
 		if (iters == UINT64_MAX)
 			iters = 0;
 
-#if !CLIENT_BATCH // If client batching disable
+        #if !CLIENT_BATCH // If client batching disable
+            if ((inf_cnt = client_man.inc_inflight(next_node)) < 0)
+                continue;
+
+            m_query = client_query_queue.get_next_query(next_node, _thd_id);
+            if (last_send_time > 0)
+            {
+                INC_STATS(get_thd_id(), cl_send_intv, get_sys_clock() - last_send_time);
+            }
+            last_send_time = get_sys_clock();
+            assert(m_query);
+
+            DEBUG("Client: thread %lu sending query to node: %u, %d, %f\n",
+                  _thd_id, next_node_id, inf_cnt, simulation->seconds_from_start(get_sys_clock()));
+
+            Message *msg = Message::create_message((BaseQuery *)m_query, CL_QRY);
+            ((ClientQueryMessage *)msg)->client_startts = get_sys_clock();
+
+            YCSBClientQueryMessage *clqry = (YCSBClientQueryMessage *)msg;
+            clqry->return_node = g_node_id;
+
+            msg_queue.enqueue(get_thd_id(), msg, next_node_id);
+            num_txns_sent++;
+            txns_sent[next_node]++;
+            INC_STATS(get_thd_id(), txn_sent_cnt, 1);
+
+        #else // If client batching enable
+
 		if ((inf_cnt = client_man.inc_inflight(next_node)) < 0)
-			continue;
-
-		m_query = client_query_queue.get_next_query(next_node, _thd_id);
-		if (last_send_time > 0)
-		{
-			INC_STATS(get_thd_id(), cl_send_intv, get_sys_clock() - last_send_time);
-		}
-		last_send_time = get_sys_clock();
-		assert(m_query);
-
-		DEBUG("Client: thread %lu sending query to node: %u, %d, %f\n",
-			  _thd_id, next_node_id, inf_cnt, simulation->seconds_from_start(get_sys_clock()));
-
-		Message *msg = Message::create_message((BaseQuery *)m_query, CL_QRY);
-		((ClientQueryMessage *)msg)->client_startts = get_sys_clock();
-
-		YCSBClientQueryMessage *clqry = (YCSBClientQueryMessage *)msg;
-		clqry->return_node = g_node_id;
-
-		msg_queue.enqueue(get_thd_id(), msg, next_node_id);
-		num_txns_sent++;
-		txns_sent[next_node]++;
-		INC_STATS(get_thd_id(), txn_sent_cnt, 1);
-
-#else // If client batching enable
-
-		if ((inf_cnt = client_man.inc_inflight(next_node)) < 0)
 		{
 			continue;
 		}
-#if BANKING_SMART_CONTRACT
-		uint64_t source = (uint64_t)rand() % 10000;
-		uint64_t dest = (uint64_t)rand() % 10000;
-		uint64_t amount = (uint64_t)rand() % 10000;
-		BankingSmartContractMessage *clqry = new BankingSmartContractMessage();
-		clqry->rtype = BSC_MSG;
-		clqry->inputs.init(!(addMore % 3) ? 3 : 2);
-		clqry->type = (BSCType)(addMore % 3);
-		clqry->inputs.add(amount);
-		clqry->inputs.add(source);
-		((ClientQueryMessage *)clqry)->client_startts = get_sys_clock();
-		if (addMore % 3 == 0)
-			clqry->inputs.add(dest);
-		clqry->return_node_id = g_node_id;
-#else
-		m_query = client_query_queue.get_next_query(_thd_id);
-		if (last_send_time > 0)
-		{
-			INC_STATS(get_thd_id(), cl_send_intv, get_sys_clock() - last_send_time);
-		}
-		last_send_time = get_sys_clock();
-		assert(m_query);
+        #if BANKING_SMART_CONTRACT
+            uint64_t source = (uint64_t)rand() % 10000;
+            uint64_t dest = (uint64_t)rand() % 10000;
+            uint64_t amount = (uint64_t)rand() % 10000;
+            BankingSmartContractMessage *clqry = new BankingSmartContractMessage();
+            clqry->rtype = BSC_MSG;
+            clqry->inputs.init(!(addMore % 3) ? 3 : 2);
+            clqry->type = (BSCType)(addMore % 3);
+            clqry->inputs.add(amount);
+            clqry->inputs.add(source);
+            ((ClientQueryMessage *)clqry)->client_startts = get_sys_clock();
+            if (addMore % 3 == 0)
+                clqry->inputs.add(dest);
+            clqry->return_node_id = g_node_id;
+        #else
+            m_query = client_query_queue.get_next_query(_thd_id);
+            if (last_send_time > 0)
+            {
+                INC_STATS(get_thd_id(), cl_send_intv, get_sys_clock() - last_send_time);
+            }
+            last_send_time = get_sys_clock();
+            assert(m_query);
 
-		Message *msg = Message::create_message((BaseQuery *)m_query, CL_QRY);
-		((ClientQueryMessage *)msg)->client_startts = get_sys_clock();
+            Message *msg = Message::create_message((BaseQuery *)m_query, CL_QRY);
+            ((ClientQueryMessage *)msg)->client_startts = get_sys_clock();
 
-		YCSBClientQueryMessage *clqry = (YCSBClientQueryMessage *)msg;
-		clqry->return_node = g_node_id;
-
-#endif
+            YCSBClientQueryMessage *clqry = (YCSBClientQueryMessage *)msg;
+            clqry->return_node = g_node_id;
+        #endif
 
 		bmsg->cqrySet.add(clqry);
 		addMore++;
@@ -259,16 +267,34 @@ RC ClientThread::run()
 		// Resetting and sending the message
 		if (addMore == g_batch_size)
 		{
-			bmsg->sign(next_node_id); // Sign the message.
+            #if PCERB
+		        if(singlePrint) {
+                    cout << "Reached inside Batch Enabled execute loop";
+                    singlePrint = false;
+                }
+                uint64_t shard_id = get_shard_number(g_node_id);
+                if (txn_batch_sent_cnt % 100 < CROSS_SHARD_PRECENTAGE && g_involved_shard[shard_id])
+                {
+                    bmsg->is_cross_shard = true;
+                    for (uint64_t i = 0; i < g_shard_cnt; i++)
+                    {
+                        bmsg->involved_shards[i] = g_involved_shard[i];
+                    }
+                }
+                else
+                    bmsg->is_cross_shard = false;
+            #endif
 
-#if TIMER_ON
-			char *buf = create_msg_buffer(bmsg);
-			Message *deepCMsg = deep_copy_msg(buf, bmsg);
-			ClientQueryBatch *deepCqry = (ClientQueryBatch *)deepCMsg;
+		    bmsg->sign(next_node_id); // Sign the message.
 
-			client_timer->startTimer(deepCqry->cqrySet[get_batch_size() - 1]->client_startts, deepCqry);
-			delete_msg_buffer(buf);
-#endif // TIMER_ON
+            #if TIMER_ON
+                char *buf = create_msg_buffer(bmsg);
+                Message *deepCMsg = deep_copy_msg(buf, bmsg);
+                ClientQueryBatch *deepCqry = (ClientQueryBatch *)deepCMsg;
+
+                client_timer->startTimer(deepCqry->cqrySet[get_batch_size() - 1]->client_startts, deepCqry);
+                delete_msg_buffer(buf);
+            #endif // TIMER_ON
 
 			vector<string> emptyvec;
 			emptyvec.push_back(bmsg->signature);
@@ -282,13 +308,18 @@ RC ClientThread::run()
 			txns_sent[next_node] += g_batch_size;
 			INC_STATS(get_thd_id(), txn_sent_cnt, g_batch_size);
 
+            #if PCERB
+			/*
+                txn_batch_sent_cnt++;
+			*/
+            #endif
 			mssg = Message::create_message(CL_BATCH);
 			bmsg = (ClientQueryBatch *)mssg;
 			bmsg->init();
 			addMore = 0;
 		}
 
-#endif // Batch Enable
+        #endif // Batch Enable
 	}
 
 	printf("FINISH %ld:%ld\n", _node_id, _thd_id);

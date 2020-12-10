@@ -389,7 +389,6 @@ void WorkerThread::client_query_check(ClientQueryBatch *clbtch)
 {
     //cout << "REQUEST: " << clbtch->return_node_id << "\n";
     //fflush(stdout);
-
     //start timer when client broadcasts an unexecuted message
     // Last request of the batch.
     YCSBClientQueryMessage *qry = clbtch->cqrySet[clbtch->batch_size - 1];

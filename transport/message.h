@@ -69,6 +69,9 @@ public:
     virtual void copy_from_txn(TxnManager *txn) = 0;
     virtual void init() = 0;
     virtual void release() = 0;
+    #if PCERB
+        bool is_cross_shard = false;
+    #endif
 };
 
 // Message types
@@ -111,6 +114,43 @@ public:
     void init() {}
     void release() {}
 };
+#if PCERB
+    class LocalInputsMessage : public Message
+    {
+    public:
+        void copy_from_buf(char *buf);
+        void copy_to_buf(char *buf);
+        void copy_from_txn(TxnManager *txn);
+        void copy_to_txn(TxnManager *txn);
+        uint64_t get_size();
+        void init() {}
+        void release() {}
+    };
+
+    class CrossShardXMessage : public Message
+    {
+    public:
+        void copy_from_buf(char *buf);
+        void copy_to_buf(char *buf);
+        void copy_from_txn(TxnManager *txn);
+        void copy_to_txn(TxnManager *txn);
+        uint64_t get_size();
+        void init() {}
+        void release() {}
+    };
+
+    class DecideOutcomeMessage : public Message
+    {
+    public:
+        void copy_from_buf(char *buf);
+        void copy_to_buf(char *buf);
+        void copy_from_txn(TxnManager *txn);
+        void copy_to_txn(TxnManager *txn);
+        uint64_t get_size();
+        void init() {}
+        void release() {}
+    };
+#endif
 
 class QueryResponseMessage : public Message
 {
@@ -223,7 +263,9 @@ public:
 #else
     uint64_t client_startts;
 #endif
-
+    #if SHARPER
+        bool is_cross_shard = false;
+    #endif
     uint64_t view; // primary node id
     void sign(uint64_t dest_node = UINT64_MAX);
     bool validate();
@@ -244,7 +286,9 @@ public:
     void sign(uint64_t dest_node = UINT64_MAX);
     bool validate();
     string getString();
-
+    #if PCERB
+        bool involved_shards[NODE_CNT / SHARD_SIZE]{false};
+    #endif
     uint64_t return_node;
     uint64_t batch_size;
 #if BANKING_SMART_CONTRACT
@@ -307,7 +351,9 @@ public:
     string getString(uint64_t sender);
 
     uint64_t view; // primary node id
-
+    #if PCERB
+        bool involved_shards[NODE_CNT / SHARD_SIZE]{false};
+    #endif
     Array<uint64_t> index;
 #if BANKING_SMART_CONTRACT
     vector<BankingSmartContractMessage *> requestMsg;

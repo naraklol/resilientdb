@@ -101,6 +101,25 @@ Message *Message::create_message(RemReqType rtype)
 	case READY:
 		msg = new ReadyServer;
 		break;
+    #if PCERB
+	    case LOCAL_INPUTS_MSG:
+	        msg = new LocalInputsMessage;
+		break;
+		case CROSS_SHARD_X_MSG:
+	        msg = new CrossShardXMessage;
+		break;
+		case DECIDE_OUTCOME_MSG:
+	        msg = new DecideOutcomeMessage;
+		break;
+    //LI_PBFT_PREP_MSG,
+    //LI_PBFT_COMMIT_MSG,
+    //Destruct msg and crossshard msg might be the same msg
+    //do we need PBFT_CHKPT_MSGs?
+    //DESTRUCT_MSG,
+    //CROSS_SHARD_X_MSG,
+    //DECIDE_OUTCOME_MSG,
+
+    #endif
 		#if BANKING_SMART_CONTRACT
 	case BSC_MSG:
 		msg = new BankingSmartContractMessage;
@@ -188,6 +207,10 @@ uint64_t Message::mget_size()
 
 	// for stats, latency
 	size += sizeof(uint64_t) * 7;
+
+    #if PCERB
+        size += sizeof(is_cross_shard);
+    #endif
 	return size;
 }
 
@@ -241,6 +264,9 @@ void Message::mcopy_from_buf(char *buf)
 		COPY_VAL(v, buf, ptr);
 		pubKey += v;
 	}
+#if PCERB
+    COPY_VAL(is_cross_shard, buf, ptr);
+#endif
 }
 
 void Message::mcopy_to_buf(char *buf)
@@ -275,6 +301,10 @@ void Message::mcopy_to_buf(char *buf)
 		v = pubKey[j];
 		COPY_BUF(buf, v, ptr);
 	}
+
+    #if PCERB
+        COPY_BUF(buf, is_cross_shard, ptr);
+    #endif
 }
 
 void Message::release_message(Message *msg)
@@ -302,6 +332,29 @@ void Message::release_message(Message *msg)
 		delete m_msg;
 		break;
 	}
+#if PCERB
+    case LOCAL_INPUTS_MSG:
+    {
+        LocalInputsMessage *m_msg = (LocalInputsMessage *)msg;
+        m_msg->release();
+        delete m_msg;
+        break;
+    }
+    case CROSS_SHARD_X_MSG:
+    {
+        CrossShardXMessage *m_msg = (CrossShardXMessage *)msg;
+        m_msg->release();
+        delete m_msg;
+        break;
+    }
+    case DECIDE_OUTCOME_MSG:
+    {
+        DecideOutcomeMessage *m_msg = (DecideOutcomeMessage *)msg;
+        m_msg->release();
+        delete m_msg;
+        break;
+    }
+#endif
 #if BANKING_SMART_CONTRACT
 	case BSC_MSG:
 	{
@@ -354,6 +407,7 @@ void Message::release_message(Message *msg)
 		delete m_msg;
 		break;
 	}
+
 
 #if VIEW_CHANGES == true
 	case VIEW_CHANGE:
@@ -1146,7 +1200,83 @@ void ReadyServer::copy_to_buf(char *buf)
 {
 	Message::mcopy_to_buf(buf);
 }
+/************************/
+uint64_t LocalInputsMessage::get_size()
+{
+    uint64_t size = Message::mget_size();
+    return size;
+}
 
+void LocalInputsMessage::copy_from_txn(TxnManager *txn)
+{
+}
+
+void LocalInputsMessage::copy_to_txn(TxnManager *txn)
+{
+    Message::mcopy_to_txn(txn);
+}
+
+void LocalInputsMessage::copy_from_buf(char *buf)
+{
+    Message::mcopy_from_buf(buf);
+}
+
+void LocalInputsMessage::copy_to_buf(char *buf)
+{
+    Message::mcopy_to_buf(buf);
+}
+/************************/
+
+uint64_t CrossShardXMessage::get_size()
+{
+    uint64_t size = Message::mget_size();
+    return size;
+}
+
+void CrossShardXMessage::copy_from_txn(TxnManager *txn)
+{
+}
+
+void CrossShardXMessage::copy_to_txn(TxnManager *txn)
+{
+    Message::mcopy_to_txn(txn);
+}
+
+void CrossShardXMessage::copy_from_buf(char *buf)
+{
+    Message::mcopy_from_buf(buf);
+}
+
+void CrossShardXMessage::copy_to_buf(char *buf)
+{
+    Message::mcopy_to_buf(buf);
+}
+/************************/
+
+uint64_t DecideOutcomeMessage::get_size()
+{
+    uint64_t size = Message::mget_size();
+    return size;
+}
+
+void DecideOutcomeMessage::copy_from_txn(TxnManager *txn)
+{
+}
+
+void DecideOutcomeMessage::copy_to_txn(TxnManager *txn)
+{
+    Message::mcopy_to_txn(txn);
+}
+
+void DecideOutcomeMessage::copy_from_buf(char *buf)
+{
+    Message::mcopy_from_buf(buf);
+}
+
+void DecideOutcomeMessage::copy_to_buf(char *buf)
+{
+    Message::mcopy_to_buf(buf);
+}
 /************************/
 
 uint64_t KeyExchange::get_size()
@@ -1204,7 +1334,9 @@ uint64_t ClientQueryBatch::get_size()
 
 	size += sizeof(return_node);
 	size += sizeof(batch_size);
-
+    #if PCERB
+        size+= sizeof(bool) * (g_shard_cnt);
+    #endif
 	for (uint i = 0; i < get_batch_size(); i++)
 	{
 		size += cqrySet[i]->get_size();
@@ -1247,7 +1379,12 @@ void ClientQueryBatch::copy_from_buf(char *buf)
 	uint64_t ptr = Message::mget_size();
 	COPY_VAL(return_node, buf, ptr);
 	COPY_VAL(batch_size, buf, ptr);
-
+    #if SHARPER
+        for (uint64_t i = 0; i < g_shard_cnt; i++)
+        {
+            COPY_VAL(involved_shards[i], buf, ptr);
+        }
+    #endif
 	cqrySet.init(get_batch_size());
 	for (uint i = 0; i < get_batch_size(); i++)
 	{
@@ -1270,7 +1407,12 @@ void ClientQueryBatch::copy_to_buf(char *buf)
 	uint64_t ptr = Message::mget_size();
 	COPY_BUF(buf, return_node, ptr);
 	COPY_BUF(buf, batch_size, ptr);
-
+    #if SHARPER
+	for (uint64_t i = 0; i < g_shard_cnt; i++)
+	{
+		COPY_BUF(buf, involved_shards[i], ptr);
+	}
+    #endif
 	for (uint i = 0; i < get_batch_size(); i++)
 	{
 		cqrySet[i]->copy_to_buf(&buf[ptr]);
@@ -2041,6 +2183,7 @@ bool PBFTCommitMessage::validate()
 
 	return true;
 }
+
 
 /****************************************/
 /*	VIEW CHANGE SPECIFIC		*/
